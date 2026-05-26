@@ -7,49 +7,55 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <main class="page-shell">
-      <section class="hero-card">
-        <div class="hero-copy">
-          <p class="eyebrow" id="eyebrow">GitHub Pages Demo</p>
+    <div class="shell">
+      <div class="hero">
+        <div>
+          <p id="eyebrow">GitHub Pages Demo</p>
           <h1 id="title">Bank Two-Layer Additive Model</h1>
           <p id="subtitle">
             Enter banking features, then run the pre-exported two-layer model directly in your browser.
           </p>
         </div>
-        <div class="hero-stats" id="hero-stats"></div>
-      </section>
+        <div class="model-tag" id="hero-stats">Loading...</div>
+      </div>
 
-      <section class="panel-grid">
-        <section class="panel">
-          <div class="panel-header">
-            <h2 id="input-title">Input</h2>
-            <select id="language-select" aria-label="Language"></select>
-          </div>
-          <form id="prediction-form" class="input-form">
-            <div class="group">
-              <h3 id="numeric-title">Numeric Features</h3>
-              <div id="numeric-controls" class="control-grid"></div>
+      <div class="grid">
+        <section class="panel input-panel">
+          <h2 class="panel-title" id="input-title">Input</h2>
+          <form id="prediction-form">
+            <div class="control lang-control">
+              <label for="language-select" id="language-label">Language</label>
+              <select id="language-select" aria-label="Language"></select>
             </div>
-            <div class="group">
-              <h3 id="categorical-title">Categorical Features</h3>
-              <div id="categorical-controls" class="control-grid"></div>
+            <div class="control-group">
+              <div>
+                <p class="group-title" id="numeric-title">Numeric Features</p>
+                <div id="numeric-controls"></div>
+              </div>
+              <div>
+                <p class="group-title" id="categorical-title">Categorical Features</p>
+                <div id="categorical-controls"></div>
+              </div>
             </div>
-            <button type="submit" class="run-button" id="run-button">Run Model</button>
+            <div class="run-row">
+              <button type="submit" class="run-button" id="run-button">Run Model</button>
+              <div class="helper-text" id="helper-text">Submit to see predictions.</div>
+            </div>
           </form>
         </section>
 
         <section class="panel results-panel">
-          <div class="panel-header">
-            <h2 id="output-title">Output</h2>
-          </div>
-          <div id="result-root" class="result-root">
-            <p class="placeholder" id="placeholder-text">
-              Submit the form to see predictions.
-            </p>
+          <div id="result-root">
+            <div class="summary-card summary-card-muted">
+              <div class="summary-kicker" id="output-title">Model Output</div>
+              <div class="summary-value">0.0%</div>
+              <div class="summary-label" id="placeholder-text">Submit the form to see predictions.</div>
+              <div class="summary-meta" id="output-meta"></div>
+            </div>
           </div>
         </section>
-      </section>
-    </main>
+      </div>
+    </div>
 
     <script src="./app.js" type="module"></script>
   </body>

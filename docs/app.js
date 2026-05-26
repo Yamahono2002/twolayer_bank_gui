@@ -49,6 +49,13 @@ function uiText(key) {
   return state.data.ui_text[state.lang][key] ?? key;
 }
 
+function formatNumber(value) {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+}
+
 function buildLanguageSelector() {
   els.languageSelect.innerHTML = "";
   for (const lang of Object.keys(state.data.ui_text)) {
@@ -72,25 +79,18 @@ function renderStaticLabels() {
   els.outputTitle.textContent = uiText("model_output");
   els.placeholderText.textContent = uiText("run_prompt");
   els.eyebrow.textContent = state.lang === "ja" ? "GitHub Pages デモ" : "GitHub Pages Demo";
+  if (els.languageLabel) {
+    els.languageLabel.textContent = uiText("language");
+  }
+  if (els.helperText) {
+    els.helperText.textContent = uiText("layer1_note");
+  }
 }
 
 function buildHeroStats() {
   const fold = state.data.fold;
   const ap = state.data.validation_ap == null ? "N/A" : Number(state.data.validation_ap).toFixed(5);
-  els.heroStats.innerHTML = `
-    <div class="stat-card">
-      <div class="stat-label">Fold</div>
-      <div class="stat-value">${fold}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Validation AP</div>
-      <div class="stat-value">${ap}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Runtime</div>
-      <div class="stat-value">Browser JS</div>
-    </div>
-  `;
+  els.heroStats.innerHTML = `Fold ${fold} | Validation AP ${ap} | Browser JS`;
 }
 
 function createControl(spec, type) {
@@ -103,22 +103,59 @@ function createControl(spec, type) {
 
   if (type === "numeric") {
     if (spec.kind === "flag") {
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.id = spec.name;
-      input.checked = Boolean(Number(spec.currentValue ?? spec.default));
-      wrapper.appendChild(input);
+      const select = document.createElement("select");
+      select.id = spec.name;
+      const options = [
+        { value: "0", text: state.lang === "ja" ? "0: あり" : "0: present" },
+        { value: "1", text: state.lang === "ja" ? "1: なし" : "1: absent" },
+      ];
+      for (const item of options) {
+        const option = document.createElement("option");
+        option.value = item.value;
+        option.textContent = item.text;
+        if (item.value === String(spec.currentValue ?? spec.default)) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      }
+      wrapper.classList.add("categorical-control");
+      wrapper.appendChild(select);
+      return wrapper;
     } else {
-      const input = document.createElement("input");
-      input.type = "number";
-      input.id = spec.name;
-      input.step = spec.step ?? "1";
-      input.min = spec.min;
-      input.max = spec.max;
-      input.value = spec.currentValue ?? spec.default;
-      wrapper.appendChild(input);
+      wrapper.classList.add("numeric-control");
+
+      const row = document.createElement("div");
+      row.className = "control-label-row";
+
+      const value = document.createElement("span");
+      value.className = "value-pill";
+      value.id = `${spec.name}_value`;
+      value.textContent = formatNumber(Number(spec.currentValue ?? spec.default));
+
+      row.appendChild(label);
+      row.appendChild(value);
+      wrapper.appendChild(row);
+
+      const range = document.createElement("input");
+      range.type = "range";
+      range.id = `${spec.name}_range`;
+      range.min = spec.min;
+      range.max = spec.max;
+      range.step = spec.step ?? "1";
+      range.value = spec.currentValue ?? spec.default;
+      wrapper.appendChild(range);
+
+      const foot = document.createElement("div");
+      foot.className = "range-foot";
+      foot.innerHTML = `
+        <span>${formatNumber(Number(spec.min))}</span>
+        <input type="number" id="${spec.name}_num" value="${spec.currentValue ?? spec.default}" step="${spec.step ?? "1"}" min="${spec.min}" max="${spec.max}" />
+        <span>${formatNumber(Number(spec.max))}</span>
+      `;
+      wrapper.appendChild(foot);
+
+      return wrapper;
     }
-    return wrapper;
   }
 
   const select = document.createElement("select");
@@ -147,16 +184,37 @@ function buildControls(currentValues = {}) {
   for (const spec of state.data.feature_spec.categorical) {
     els.categoricalControls.appendChild(createControl({ ...spec, currentValue: currentValues[spec.name] }, "categorical"));
   }
+
+  for (const spec of state.data.feature_spec.numeric) {
+    if (spec.kind === "flag") {
+      continue;
+    }
+    const range = $(`${spec.name}_range`);
+    const num = $(`${spec.name}_num`);
+    const value = $(`${spec.name}_value`);
+    if (!range || !num || !value) {
+      continue;
+    }
+    const sync = (raw) => {
+      const parsed = Number(raw);
+      const clamped = Math.min(Math.max(Number.isFinite(parsed) ? parsed : Number(range.value), Number(range.min)), Number(range.max));
+      range.value = String(clamped);
+      num.value = String(clamped);
+      value.textContent = formatNumber(clamped);
+    };
+    range.addEventListener("input", () => sync(range.value));
+    num.addEventListener("input", () => sync(num.value));
+    sync(range.value);
+  }
 }
 
 function readFormState() {
   const formData = {};
   for (const spec of state.data.feature_spec.numeric) {
-    const el = $(spec.name);
     if (spec.kind === "flag") {
-      formData[spec.name] = el.checked ? "1" : "0";
+      formData[spec.name] = String($(spec.name).value);
     } else {
-      formData[spec.name] = String(el.value);
+      formData[spec.name] = String($(`${spec.name}_range`).value);
     }
   }
   for (const spec of state.data.feature_spec.categorical) {
@@ -267,6 +325,9 @@ function predict(formData) {
 function renderResult(formData) {
   const { uiState, subscaleScores, finalProb } = predict(formData);
   const riskLabel = finalProb >= 0.5 ? uiText("high_risk") : uiText("low_risk");
+  const textColor = finalProb >= 0.5 ? "#ffffff" : "#111111";
+  const bg = finalProb >= 0.5 ? "#e84b4b" : "#b8b8b8";
+  const summaryMeta = state.data.validation_ap == null ? "" : `Validation AP ${Number(state.data.validation_ap).toFixed(5)}`;
 
   const rawItems = state.data.feature_spec.numeric
     .map((spec) => ({
@@ -286,68 +347,108 @@ function renderResult(formData) {
     weight: state.data.model.final_clf.weights[index] ?? 0,
   }));
 
-  const riskColor = `rgba(${Math.round(232 * finalProb + 184 * (1 - finalProb))}, ${Math.round(75 * finalProb + 184 * (1 - finalProb))}, ${Math.round(75 * finalProb + 184 * (1 - finalProb))}, 1)`;
-
   els.resultRoot.innerHTML = `
-    <div class="result-card">
-      <div class="result-grid">
-        <div class="result-top">
-          <div class="metric">
-            <div class="metric-label">${uiText("predicted_probability")}</div>
-            <div class="metric-value">${(finalProb * 100).toFixed(1)}%</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">${uiText("output")}</div>
-            <div class="metric-value">${riskLabel}</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">Fold</div>
-            <div class="metric-value">${state.data.fold}</div>
-          </div>
-        </div>
-
-        <div class="badge" style="border-color:${riskColor};">
-          <span>Color</span>
-          <strong>${riskColor}</strong>
-        </div>
-      </div>
+    <div class="summary-card" style="background:${bg};color:${textColor}">
+      <div class="summary-kicker">${uiText("model_output")}</div>
+      <div class="summary-value">${(finalProb * 100).toFixed(1)}%</div>
+      <div class="summary-label">${riskLabel}</div>
+      <div class="summary-meta">${summaryMeta}</div>
     </div>
 
-    <div class="result-card">
-      <div class="section-title">${uiText("original_features")}</div>
-      <div class="list">
+    <section class="network-card">
+      <div class="section-head">
+        <h2>${uiText("structure_title")}</h2>
+        <p>${uiText("layer1_note")}</p>
+      </div>
+      <div class="output-legend">
+        <div class="legend-title">${state.lang === "ja" ? "色と大きさの対応" : "Color-to-magnitude map"}</div>
+        <div class="legend-bar" aria-hidden="true">
+          <span class="legend-stop legend-low"></span>
+          <span class="legend-stop legend-mid"></span>
+          <span class="legend-stop legend-high"></span>
+        </div>
+        <div class="legend-labels">
+          <span>${state.lang === "ja" ? "低" : "Low"}</span>
+          <span>${state.lang === "ja" ? "中" : "Mid"}</span>
+          <span>${state.lang === "ja" ? "高" : "High"}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="result-section">
+      <div class="section-head">
+        <h2>${uiText("original_features")}</h2>
+        <p>${uiText("raw_desc")}</p>
+      </div>
+      <div class="encoded-grid">
         ${rawItems
           .map(
             (item) => `
-              <div class="list-item">
-                <span>${item.name}</span>
-                <strong>${item.value}</strong>
+              <div class="feature-card">
+                <div class="feature-name">${item.name}</div>
+                <div class="feature-value">${item.value}</div>
               </div>`,
           )
           .join("")}
       </div>
-    </div>
+    </section>
 
-    <div class="result-card">
-      <div class="section-title">${uiText("subscale_features")}</div>
-      <div class="list">
+    <section class="result-section">
+      <div class="section-head">
+        <h2>${uiText("subscale_features")}</h2>
+        <p>${uiText("subscale_desc")}</p>
+      </div>
+      <div class="card-stack">
         ${subscaleRows
           .map(
             (item) => `
               <div class="subscale-card">
-                <div class="subscale-header">
-                  <span class="subscale-name">${item.name}</span>
-                  <span>${(item.weight ?? 0).toFixed(3)}</span>
+                <div class="subscale-name">${item.name}<span class="subscale-weight">${item.weight.toFixed(3)}</span></div>
+                <div class="subscale-metric-head">
+                  <span>${uiText("subscale_probability")}</span>
+                  <span>${uiText("subscale_weight")}</span>
                 </div>
-                <div class="subscale-values">
-                  <div class="subscale-value" style="background:#f4ddd5;">${(item.probability * 100).toFixed(1)}%</div>
-                  <div class="subscale-value" style="background:#d7e4ef;">${(item.weight ?? 0).toFixed(3)}</div>
+                <div class="subscale-split">
+                  <div class="subscale-half subscale-half-score" style="background:#f4ddd5;color:#111111">
+                    <div class="half-value">${(item.probability * 100).toFixed(1)}%</div>
+                  </div>
+                  <div class="subscale-half" style="background:#d7e4ef;color:#111111">
+                    <div class="half-value">${item.weight.toFixed(3)}</div>
+                  </div>
                 </div>
               </div>`,
           )
           .join("")}
       </div>
-    </div>
+    </section>
+
+    <section class="result-section">
+      <div class="section-head">
+        <h2>${uiText("output")}</h2>
+        <p>${uiText("output_desc")}</p>
+      </div>
+      <div class="output-panel">
+        <div class="output-title">${uiText("predicted_probability")}</div>
+        <div class="output-bar">
+          <div class="output-fill" style="width:${(finalProb * 100).toFixed(1)}%;background:${bg}"></div>
+        </div>
+        <div class="output-readout">${uiText("predicted_probability")} ${(finalProb * 100).toFixed(1)}%</div>
+        <div class="output-caption">${riskLabel}</div>
+        <div class="output-legend">
+          <div class="legend-title">${state.lang === "ja" ? "色と大きさの対応" : "Color-to-magnitude map"}</div>
+          <div class="legend-bar" aria-hidden="true">
+            <span class="legend-stop legend-low"></span>
+            <span class="legend-stop legend-mid"></span>
+            <span class="legend-stop legend-high"></span>
+          </div>
+          <div class="legend-labels">
+            <span>${state.lang === "ja" ? "低" : "Low"}</span>
+            <span>${state.lang === "ja" ? "中" : "Mid"}</span>
+            <span>${state.lang === "ja" ? "高" : "High"}</span>
+          </div>
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -372,6 +473,7 @@ async function init() {
   els.inputTitle = $("input-title");
   els.numericTitle = $("numeric-title");
   els.categoricalTitle = $("categorical-title");
+  els.languageLabel = $("language-label");
   els.runButton = $("run-button");
   els.outputTitle = $("output-title");
   els.placeholderText = $("placeholder-text");
@@ -382,6 +484,8 @@ async function init() {
   els.categoricalControls = $("categorical-controls");
   els.form = $("prediction-form");
   els.resultRoot = $("result-root");
+  els.helperText = $("helper-text");
+  els.outputMeta = $("output-meta");
 
   const response = await fetch("./model-data.json");
   state.data = await response.json();
@@ -398,6 +502,6 @@ init().catch((error) => {
   console.error(error);
   const root = $("result-root");
   if (root) {
-    root.innerHTML = `<div class="result-card">Failed to load model data: ${String(error)}</div>`;
+    root.innerHTML = `<div class="error-banner">Failed to load model data: ${String(error)}</div>`;
   }
 });
