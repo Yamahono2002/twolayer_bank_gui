@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bank Two-Layer Additive Model</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero-card">
+        <div class="hero-copy">
+          <p class="eyebrow" id="eyebrow">GitHub Pages Demo</p>
+          <h1 id="title">Bank Two-Layer Additive Model</h1>
+          <p id="subtitle">
+            Enter banking features, then run the pre-exported two-layer model directly in your browser.
+          </p>
+        </div>
+        <div class="hero-stats" id="hero-stats"></div>
+      </section>
+
+      <section class="panel-grid">
+        <section class="panel">
+          <div class="panel-header">
+            <h2 id="input-title">Input</h2>
+            <select id="language-select" aria-label="Language"></select>
+          </div>
+          <form id="prediction-form" class="input-form">
+            <div class="group">
+              <h3 id="numeric-title">Numeric Features</h3>
+              <div id="numeric-controls" class="control-grid"></div>
+            </div>
+            <div class="group">
+              <h3 id="categorical-title">Categorical Features</h3>
+              <div id="categorical-controls" class="control-grid"></div>
+            </div>
+            <button type="submit" class="run-button" id="run-button">Run Model</button>
+          </form>
+        </section>
+
+        <section class="panel results-panel">
+          <div class="panel-header">
+            <h2 id="output-title">Output</h2>
+          </div>
+          <div id="result-root" class="result-root">
+            <p class="placeholder" id="placeholder-text">
+              Submit the form to see predictions.
+            </p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
