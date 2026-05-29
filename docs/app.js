@@ -585,9 +585,11 @@ function renderNetworkDiagram(rawItems, subscaleRows, finalProb) {
 
 function renderResult(formData) {
   const { uiState, subscaleScores, finalProb } = predict(formData);
-  const riskLabel = finalProb >= 0.5 ? uiText("high_risk") : uiText("low_risk");
   const summaryColor = riskColor(finalProb);
   const summaryTextColor = textColor(summaryColor);
+  const predictionLabel = state.lang === "ja"
+    ? "定期預金申し込み確率"
+    : "Term deposit subscription probability";
   const summaryMeta = state.data.validation_ap == null ? "" : `Validation AP ${Number(state.data.validation_ap).toFixed(5)}`;
 
   const rawItems = state.data.feature_spec.numeric
@@ -617,7 +619,7 @@ function renderResult(formData) {
     <div class="summary-card" style="background:${summaryColor};color:${summaryTextColor}">
       <div class="summary-kicker">${uiText("model_output")}</div>
       <div class="summary-value">${(finalProb * 100).toFixed(1)}%</div>
-      <div class="summary-label">${riskLabel}</div>
+      <div class="summary-label">${predictionLabel}</div>
       <div class="summary-meta">${summaryMeta}</div>
     </div>
     ${renderNetworkDiagram(rawItems, subscaleRows, finalProb)}
@@ -680,7 +682,6 @@ function renderResult(formData) {
           <div class="output-fill" style="width:${(finalProb * 100).toFixed(1)}%;background:${summaryColor}"></div>
         </div>
         <div class="output-readout">${uiText("predicted_probability")} ${(finalProb * 100).toFixed(1)}%</div>
-        <div class="output-caption">${riskLabel}</div>
         <div class="output-legend">
           <div class="legend-title">${state.lang === "ja" ? "色と大きさの対応" : "Color-to-magnitude map"}</div>
           <div class="legend-bar" aria-hidden="true">
