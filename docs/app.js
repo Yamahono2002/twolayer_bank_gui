@@ -322,58 +322,305 @@ function predict(formData) {
   return { uiState, subscaleScores, finalProb };
 }
 
+function riskColor(prob) {
+  const p = Math.max(0, Math.min(1, Number(prob)));
+  const low = [0xb8, 0xb8, 0xb8];
+  const high = [0xe8, 0x4b, 0x4b];
+  const mix = (a, b) => Math.round(a * (1 - p) + b * p);
+  return `#${[mix(low[0], high[0]), mix(low[1], high[1]), mix(low[2], high[2])]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function textColor(bgHex) {
+  const hex = bgHex.replace("#", "");
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? "#111111" : "#ffffff";
+}
+
+function blendHex(baseHex, targetHex, ratio) {
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const p = clamp(ratio);
+  const parse = (hex) => {
+    const value = hex.replace("#", "");
+    return [
+      Number.parseInt(value.slice(0, 2), 16),
+      Number.parseInt(value.slice(2, 4), 16),
+      Number.parseInt(value.slice(4, 6), 16),
+    ];
+  };
+  const [br, bg, bb] = parse(baseHex);
+  const [tr, tg, tb] = parse(targetHex);
+  const toHex = (n) => Math.round(n).toString(16).padStart(2, "0");
+  return `#${toHex(br * (1 - p) + tr * p)}${toHex(bg * (1 - p) + tg * p)}${toHex(bb * (1 - p) + tb * p)}`;
+}
+
+function metricColor(value, scale = 1) {
+  const magnitude = Math.min(1, Math.abs(Number(value)) / (scale > 0 ? scale : 1));
+  return riskColor(magnitude);
+}
+
+function rawValueLabel(name, value, kind) {
+  if (kind === "categorical") {
+    return optionLabel(name, String(value));
+  }
+  if (typeof value === "number") {
+    return formatNumber(value);
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? formatNumber(n) : String(value);
+}
+
+function subscaleSourceNames(name) {
+  return name === "pdays" ? ["pdays_eq_999", "pdays_lt_999"] : [name];
+}
+
+function renderProbabilityLegend() {
+  return `
+    <div class="output-legend">
+      <div class="legend-title">${state.lang === "ja" ? "色と大きさの対応" : "Color-to-magnitude map"}</div>
+      <div class="legend-bar" aria-hidden="true">
+        <span class="legend-stop legend-low"></span>
+        <span class="legend-stop legend-mid"></span>
+        <span class="legend-stop legend-high"></span>
+      </div>
+      <div class="legend-labels">
+        <span>${state.lang === "ja" ? "低" : "Low"}</span>
+        <span>${state.lang === "ja" ? "中" : "Mid"}</span>
+        <span>${state.lang === "ja" ? "高" : "High"}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderNetworkDiagram(rawItems, subscaleRows, finalProb) {
+  const leftX = 60;
+  const middleX = 460;
+  const rightX = 920;
+  const originalWidth = 330;
+  const subscaleWidth = 250;
+  const outputWidth = 220;
+  const originalHeight = 36;
+  const subscaleHeight = 64;
+  const outputHeight = 76;
+  const rowGap = 72;
+  const topMargin = 70;
+  const pdaysRowOffset = -12;
+  const laterRowsOffset = 10;
+
+  const rowY = (idx) => topMargin + idx * rowGap + (idx === 0 ? pdaysRowOffset : laterRowsOffset);
+  const originalNodeTop = (baseY, height) => baseY + (subscaleHeight - height) / 2;
+  const originalMap = new Map(rawItems.map((row) => [row.rawName ?? row.name, row]));
+  const pdaysSources = subscaleSourceNames("pdays");
+  const originalHasPdaysPair = pdaysSources.every((name) => originalMap.has(name));
+
+  const orderedOriginalRows = [];
+  if (originalHasPdaysPair) {
+    orderedOriginalRows.push({ name: "pdays", kind: "group", sources: pdaysSources });
+    for (const row of rawItems) {
+      if (pdaysSources.includes(row.rawName ?? row.name)) {
+        continue;
+      }
+      orderedOriginalRows.push(row);
+    }
+  } else {
+    orderedOriginalRows.push(...rawItems);
+  }
+
+  const orderedSubscaleRows = [...subscaleRows].sort((a, b) => ((a.rawName ?? a.name) === "pdays" ? -1 : (b.rawName ?? b.name) === "pdays" ? 1 : 0));
+  const maxRows = Math.max(orderedOriginalRows.length, orderedSubscaleRows.length);
+  const stageHeight = topMargin * 2 + (maxRows - 1) * rowGap + 130 + (laterRowsOffset - pdaysRowOffset);
+  const outputCy = stageHeight / 2;
+  const outputTop = outputCy - outputHeight / 2;
+
+  const originalNodes = [];
+  const subscaleNodes = [];
+  const lines = [];
+  const markerDefs = [];
+  const originalPositions = new Map();
+
+  orderedOriginalRows.forEach((row, idx) => {
+    const y = rowY(idx);
+    if (row.kind === "group") {
+      const groupHeight = originalHeight * 2 + 10;
+      const nodeTop = originalNodeTop(y, groupHeight);
+      const cy = nodeTop + groupHeight / 2;
+      for (const sourceName of row.sources) {
+        originalPositions.set(sourceName, { cy });
+      }
+      const sourceBits = row.sources
+        .map((sourceName) => {
+          const sourceRow = originalMap.get(sourceName);
+          if (!sourceRow) return "";
+          return `
+            <div class="group-line">
+              <span class="group-label">${featureLabel(sourceName)}</span>
+              <span class="group-value">${rawValueLabel(sourceName, sourceRow.value, sourceRow.kind)}</span>
+            </div>
+          `;
+        })
+        .join("");
+
+      originalNodes.push(`
+        <div class="diagram-node original-node group-node" style="left:${leftX}px;top:${nodeTop}px;width:${originalWidth}px;height:${groupHeight}px;">
+          <div class="node-title">${featureLabel("pdays")}</div>
+          <div class="group-lines">${sourceBits}</div>
+        </div>
+      `);
+      return;
+    }
+
+    const nodeTop = originalNodeTop(y, originalHeight);
+    const cy = nodeTop + originalHeight / 2;
+    originalPositions.set(row.rawName ?? row.name, { cy });
+    originalNodes.push(`
+      <div class="diagram-node original-node" style="left:${leftX}px;top:${nodeTop}px;width:${originalWidth}px;height:${originalHeight}px;">
+        <div class="node-title">${featureLabel(row.rawName ?? row.name)}</div>
+        <div class="node-value">${rawValueLabel(row.rawName ?? row.name, row.value, row.kind)}</div>
+      </div>
+    `);
+  });
+
+  const scaleForWeight = Math.max(...orderedSubscaleRows.map((row) => Math.abs(Number(row.weight ?? 0))), 0) || 1;
+  let combinedScale = 0;
+  orderedSubscaleRows.forEach((row) => {
+    combinedScale = Math.max(combinedScale, Math.abs(Number(row.probability) * Number(row.weight ?? 0)));
+  });
+  if (combinedScale <= 0) combinedScale = 1;
+
+  orderedSubscaleRows.forEach((row, idx) => {
+    const y = rowY(idx);
+    const cy = y + subscaleHeight / 2;
+    const scoreColor = riskColor(row.probability);
+    const weight = Number(row.weight ?? 0);
+    const weightColor = metricColor(weight, scaleForWeight);
+    const combinedColor = metricColor(row.probability * weight, combinedScale);
+    const scoreTextColor = textColor(scoreColor);
+    const weightTextColor = "#111111";
+    const combinedTextColor = textColor(combinedColor);
+    const weightText = Number.isFinite(weight) ? weight.toFixed(3) : "N/A";
+    const baseLine = blendHex(scoreColor, "#ffffff", 0.45);
+
+    subscaleNodes.push(`
+      <div class="diagram-node subscale-node" style="left:${middleX}px;top:${y}px;width:${subscaleWidth}px;height:${subscaleHeight}px;">
+        <div class="node-title">${subscaleLabel(row.rawName ?? row.name)}</div>
+        <div class="subscale-split">
+          <div class="subscale-half subscale-half-score" style="background:${scoreColor};color:${scoreTextColor}">
+            <div class="half-value">${(row.probability * 100).toFixed(1)}%</div>
+          </div>
+          <div class="subscale-half subscale-half-weight" style="background:${weightColor};color:${weightTextColor}">
+            <div class="half-value">${weightText}</div>
+          </div>
+        </div>
+      </div>
+    `);
+
+    subscaleSourceNames(row.rawName ?? row.name).forEach((sourceName, sourceIdx) => {
+      const pos = originalPositions.get(sourceName);
+      if (!pos) return;
+      const x1 = leftX + originalWidth;
+      const x2 = middleX;
+      lines.push(`<line x1="${x1}" y1="${pos.cy}" x2="${x2}" y2="${cy}" stroke="${baseLine}" stroke-width="2.2" marker-end="url(#arrow-in-${idx}-${sourceIdx})" />`);
+      markerDefs.push(`
+        <marker id="arrow-in-${idx}-${sourceIdx}" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+          <polygon points="0 0, 7 3.5, 0 7" fill="${baseLine}" />
+        </marker>
+      `);
+    });
+
+    const x3 = middleX + subscaleWidth;
+    const x4 = rightX;
+    lines.push(`<line x1="${x3}" y1="${cy}" x2="${x4}" y2="${outputCy}" stroke="${combinedColor}" stroke-width="2.8" marker-end="url(#arrow-out-${idx})" />`);
+    markerDefs.push(`
+      <marker id="arrow-out-${idx}" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+        <polygon points="0 0, 7 3.5, 0 7" fill="${combinedColor}" />
+      </marker>
+    `);
+  });
+
+  const outputColor = riskColor(finalProb);
+  const outputTextColor = textColor(outputColor);
+
+  const subscaleHeaderHtml = `
+    <div class="network-col-label" style="left:${middleX + subscaleWidth / 2}px;top:18px;width:${subscaleWidth}px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;width:100%;">
+        <span style="margin-left:26px;">${uiText("subscale_probability")}</span>
+        <span style="margin-right:28px;">${uiText("subscale_weight")}</span>
+      </div>
+    </div>
+  `;
+
+  const outputNode = `
+      <div class="diagram-node output-node" style="left:${rightX}px;top:${outputTop}px;width:${outputWidth}px;height:${outputHeight}px;background:${outputColor};color:${outputTextColor};">
+        <div class="node-title">${uiText("output")}</div>
+        <div class="node-value">${uiText("predicted_probability")} ${(finalProb * 100).toFixed(1)}%</div>
+      </div>
+    `;
+
+  const svgWidth = rightX + outputWidth + 40;
+  return `
+    <section class="network-card">
+      <div class="section-head">
+        <h2>${uiText("structure_title")}</h2>
+        <p>${uiText("layer1_note")}</p>
+      </div>
+      <div class="network-stage" style="height:${stageHeight}px;">
+        <div class="network-legend-anchor">
+          ${renderProbabilityLegend()}
+        </div>
+        <svg class="network-links" width="${svgWidth}" height="${stageHeight}" viewBox="0 0 ${svgWidth} ${stageHeight}" preserveAspectRatio="none">
+          <defs>${markerDefs.join("")}</defs>
+          ${lines.join("")}
+        </svg>
+        ${subscaleHeaderHtml}
+        ${originalNodes.join("")}
+        ${subscaleNodes.join("")}
+        ${outputNode}
+      </div>
+    </section>
+  `;
+}
+
 function renderResult(formData) {
   const { uiState, subscaleScores, finalProb } = predict(formData);
   const riskLabel = finalProb >= 0.5 ? uiText("high_risk") : uiText("low_risk");
-  const textColor = finalProb >= 0.5 ? "#ffffff" : "#111111";
-  const bg = finalProb >= 0.5 ? "#e84b4b" : "#b8b8b8";
+  const summaryColor = riskColor(finalProb);
+  const summaryTextColor = textColor(summaryColor);
   const summaryMeta = state.data.validation_ap == null ? "" : `Validation AP ${Number(state.data.validation_ap).toFixed(5)}`;
 
   const rawItems = state.data.feature_spec.numeric
     .map((spec) => ({
+      rawName: spec.name,
       name: featureLabel(spec.name),
       value: spec.kind === "flag" ? Number(uiState[spec.name]) : Number(uiState[spec.name]).toFixed(4).replace(/\.?0+$/, ""),
+      kind: spec.kind,
     }))
     .concat(
       state.data.feature_spec.categorical.map((spec) => ({
+        rawName: spec.name,
         name: featureLabel(spec.name),
         value: optionLabel(spec.name, uiState[spec.name]),
+        kind: "categorical",
       })),
     );
 
   const subscaleRows = state.data.subscale_names.map((name, index) => ({
+    rawName: name,
     name: subscaleLabel(name),
     probability: subscaleScores[index],
     weight: state.data.model.final_clf.weights[index] ?? 0,
   }));
 
   els.resultRoot.innerHTML = `
-    <div class="summary-card" style="background:${bg};color:${textColor}">
+    <div class="summary-card" style="background:${summaryColor};color:${summaryTextColor}">
       <div class="summary-kicker">${uiText("model_output")}</div>
       <div class="summary-value">${(finalProb * 100).toFixed(1)}%</div>
       <div class="summary-label">${riskLabel}</div>
       <div class="summary-meta">${summaryMeta}</div>
     </div>
-
-    <section class="network-card">
-      <div class="section-head">
-        <h2>${uiText("structure_title")}</h2>
-        <p>${uiText("layer1_note")}</p>
-      </div>
-      <div class="output-legend">
-        <div class="legend-title">${state.lang === "ja" ? "色と大きさの対応" : "Color-to-magnitude map"}</div>
-        <div class="legend-bar" aria-hidden="true">
-          <span class="legend-stop legend-low"></span>
-          <span class="legend-stop legend-mid"></span>
-          <span class="legend-stop legend-high"></span>
-        </div>
-        <div class="legend-labels">
-          <span>${state.lang === "ja" ? "低" : "Low"}</span>
-          <span>${state.lang === "ja" ? "中" : "Mid"}</span>
-          <span>${state.lang === "ja" ? "高" : "High"}</span>
-        </div>
-      </div>
-    </section>
+    ${renderNetworkDiagram(rawItems, subscaleRows, finalProb)}
 
     <section class="result-section">
       <div class="section-head">
@@ -430,7 +677,7 @@ function renderResult(formData) {
       <div class="output-panel">
         <div class="output-title">${uiText("predicted_probability")}</div>
         <div class="output-bar">
-          <div class="output-fill" style="width:${(finalProb * 100).toFixed(1)}%;background:${bg}"></div>
+          <div class="output-fill" style="width:${(finalProb * 100).toFixed(1)}%;background:${summaryColor}"></div>
         </div>
         <div class="output-readout">${uiText("predicted_probability")} ${(finalProb * 100).toFixed(1)}%</div>
         <div class="output-caption">${riskLabel}</div>
