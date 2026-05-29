@@ -286,6 +286,119 @@ select {
   box-shadow: 0 10px 28px rgba(41, 28, 16, 0.07);
 }
 
+.network-stage {
+  position: relative;
+  min-height: 520px;
+  margin-top: 8px;
+}
+
+.network-links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.network-legend-anchor {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 260px;
+  z-index: 4;
+}
+
+.network-col-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6d6255;
+  font-weight: 700;
+  z-index: 3;
+}
+
+.diagram-node {
+  position: absolute;
+  z-index: 2;
+  border-radius: 16px;
+  border: 1px solid rgba(31, 26, 22, 0.10);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+}
+
+.original-node {
+  background: linear-gradient(180deg, #ffffff, #f7f5f1);
+}
+
+.group-node {
+  justify-content: flex-start;
+  gap: 4px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.group-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.group-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.group-label {
+  font-weight: 700;
+}
+
+.group-value {
+  font-weight: 600;
+  color: #5e5144;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.subscale-node {
+  background: linear-gradient(180deg, #fffdf8, #f8f4ee);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255,255,255,0.18);
+  gap: 4px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.output-node {
+  align-items: center;
+  text-align: center;
+  font-weight: 700;
+}
+
+.node-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.0;
+  margin-bottom: 1px;
+}
+
+.node-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .section-head h2 {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
@@ -499,6 +612,15 @@ select {
   font-weight: 800;
   line-height: 1.0;
   font-variant-numeric: tabular-nums;
+}
+
+.output-legend {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(31, 26, 22, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
 }
 
 .footnote {
