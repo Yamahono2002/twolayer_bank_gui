@@ -1,26 +1,20 @@
 # twolayer_bank_gui
 
-GitHub Pages 用の静的デモと、Python/Streamlit 用の実行版を同じリポジトリで管理するための構成です。
+Bank two-layer additive model repository.
 
-## Files
+## Layout
 
-- `new_bank/base_cluster_gui.py`: 既存の Python GUI / モデル実装
-- `streamlit_app.py`: Streamlit 用の入口
-- `export_model_data.py`: 学習済みモデルを `docs/model-data.json` に書き出すスクリプト
-- `docs/`: GitHub Pages 用の静的サイト
+- `docs/`: GitHub Pages static demo
+- `export_model_data.py`: exports trained model parameters to `docs/model-data.json`
+- `new_bank/base_cluster_gui.py`: Python GUI / runtime that loads the notebook-based model
+- `new_bank/hier.ipynb`: notebook containing the model definitions and training logic
+- `requirements.txt`: development dependencies
 
-## GitHub Pages
+## Static demo
 
-`docs/index.html` を Pages の公開元に指定してください。
+The browser demo reads `docs/model-data.json` and runs predictions client-side with JavaScript.
 
-## Regenerate data
+## Regenerate the JSON
 
 ```bash
 .venv/bin/python export_model_data.py --output docs/model-data.json
-```
-
-## Streamlit
-
-```bash
-streamlit run streamlit_app.py
-```
