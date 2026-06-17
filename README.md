@@ -14,7 +14,3 @@ Bank two-layer additive model repository.
 
 The browser demo reads `docs/model-data.json` and runs predictions client-side with JavaScript.
 
-## Regenerate the JSON
-
-```bash
-.venv/bin/python export_model_data.py --output docs/model-data.json
