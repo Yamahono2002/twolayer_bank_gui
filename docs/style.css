@@ -564,7 +564,7 @@ select {
 
 .subscale-weight {
   font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   margin-left: 6px;
   opacity: 0.9;
@@ -608,7 +608,7 @@ select {
 
 .half-value {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.0;
   font-variant-numeric: tabular-nums;
