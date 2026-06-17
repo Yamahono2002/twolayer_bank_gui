@@ -2,15 +2,27 @@
 
 Bank two-layer additive model repository.
 
-## Layout
+This repository is organized for a static browser demo.
+
+## Contents
 
 - `docs/`: GitHub Pages static demo
-- `export_model_data.py`: exports trained model parameters to `docs/model-data.json`
-- `new_bank/base_cluster_gui.py`: Python GUI / runtime that loads the notebook-based model
-- `new_bank/hier.ipynb`: notebook containing the model definitions and training logic
-- `requirements.txt`: development dependencies
+- `docs/index.html`: entry point for the browser GUI
+- `docs/app.js`: client-side prediction logic
+- `docs/style.css`: visual styling
+- `docs/model-data.json`: pre-exported model parameters and labels
+- `docs/.nojekyll`: disables Jekyll on GitHub Pages
 
-## Static demo
+## How it works
 
-The browser demo reads `docs/model-data.json` and runs predictions client-side with JavaScript.
+The browser GUI loads `docs/model-data.json` and runs predictions client-side with JavaScript.
 
+This means users can change input features and see predictions without installing Python or running model training.
+
+## Run locally
+
+To preview the GUI locally, serve the `docs/` directory with a simple HTTP server:
+
+```bash
+cd /path/to/twolayer_bank_gui-main
+python3 -m http.server 8000 --directory docs
